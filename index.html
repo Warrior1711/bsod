@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Terminal ROOT</title>
+  <style>
+    :root{
+      --bg:#000;
+      --fg:#fff;
+      --muted:rgba(255,255,255,.65);
+      --border:rgba(255,255,255,.18);
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--fg);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      line-height:1.35;
+    }
+    .wrap{
+      min-height:100vh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:24px;
+    }
+    .terminal{
+      width:min(900px, 100%);
+      border:1px solid var(--border);
+      border-radius:14px;
+      overflow:hidden;
+      box-shadow:0 10px 40px rgba(0,0,0,.6);
+    }
+    .bar{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding:10px 14px;
+      border-bottom:1px solid var(--border);
+      background:rgba(255,255,255,.03);
+      letter-spacing:.2px;
+    }
+    .dots{display:flex; gap:8px; align-items:center}
+    .dot{
+      width:10px;height:10px;border-radius:999px;
+      border:1px solid var(--border);
+      background:transparent;
+    }
+    .title{
+      font-size:12px;
+      color:var(--muted);
+      user-select:none;
+    }
+    .screen{
+      padding:16px;
+      height:min(70vh, 520px);
+      overflow:auto;
+      white-space:pre-wrap;
+      word-break:break-word;
+    }
+    .line{margin:0}
+    .dim{color:var(--muted)}
+    .cursor{
+      display:inline-block;
+      width:10px;
+      margin-left:2px;
+      border-bottom:2px solid var(--fg);
+      transform:translateY(-1px);
+      animation:blink .9s steps(1) infinite;
+    }
+    @keyframes blink{50%{opacity:0}}
+    .hint{
+      padding:12px 16px;
+      border-top:1px solid var(--border);
+      color:var(--muted);
+      font-size:12px;
+    }
+    .kbd{
+      border:1px solid var(--border);
+      padding:2px 6px;
+      border-radius:7px;
+      color:var(--fg);
+      background:rgba(255,255,255,.03);
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="terminal" role="application" aria-label="Terminal chat">
+      <div class="bar">
+        <div class="dots" aria-hidden="true">
+          <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+        </div>
+        <div class="title">command://session — readonly</div>
+        <div style="width:54px"></div>
+      </div>
+
+      <div id="screen" class="screen"></div>
+
+      <div class="hint">
+        Edit messages in <span class="kbd">SCRIPT</span> in the code. Press <span class="kbd">R</span> to replay.
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // -------------------------------------------
+    // PLACEHOLDER MESSAGES (edit these!)
+    // Tip: keep the "> NAME:" prefix for the command-bar vibe.
+    // -------------------------------------------
+    const SCRIPT = [
+      { text: "> 001: [placeholder message 1]", delay: 700, typeSpeed: 18 },
+      { text: "> 002: [placeholder message 2]", delay: 900, typeSpeed: 16 },
+      { text: "> 001: [placeholder message 3]", delay: 850, typeSpeed: 18 },
+
+      // "typing" dots style
+      { text: "> USER_B is typing.", delay: 350, typeSpeed: 0, className: "dim" },
+      { text: "> USER_B is typing..", delay: 350, typeSpeed: 0, className: "dim" },
+      { text: "> USER_B is typing...", delay: 650, typeSpeed: 0, className: "dim" },
+
+      { text: "> USER_B: [placeholder reply here]", delay: 800, typeSpeed: 15 },
+      { text: "> SYSTEM: [placeholder system message]", delay: 1000, typeSpeed: 10, className: "dim" },
+      { text: "> USER_A: [placeholder final line]", delay: 900, typeSpeed: 18 },
+    ];
+
+    const screen = document.getElementById("screen");
+    let stopped = false;
+
+    const sleep = (ms) => new Promise(res => setTimeout(res, ms));
+
+    function addLine(className="") {
+      const p = document.createElement("p");
+      p.className = "line " + className;
+      p.textContent = "";
+      screen.appendChild(p);
+      return p;
+    }
+
+    function scrollToBottom() {
+      screen.scrollTop = screen.scrollHeight;
+    }
+
+    async function typeText(el, text, cps) {
+      // cps here is "milliseconds per character" (smaller = faster)
+      if (!cps || cps <= 0) {
+        el.textContent = text;
+        scrollToBottom();
+        return;
+      }
+
+      // Cursor
+      const cursor = document.createElement("span");
+      cursor.className = "cursor";
+      el.appendChild(document.createTextNode("")); // ensure el exists
+      el.appendChild(cursor);
+
+      let out = "";
+      for (let i = 0; i < text.length; i++) {
+        if (stopped) return;
+        out += text[i];
+        el.textContent = out;
+        el.appendChild(cursor);
+        scrollToBottom();
+        await sleep(cps);
+      }
+      cursor.remove();
+    }
+
+    async function runScript() {
+      stopped = false;
+      screen.innerHTML = "";
+
+      // Optional header
+      const header = addLine("dim");
+      header.textContent = "> boot: ok | mode: transcript | access: local";
+      addLine("dim").textContent = "> ----------------------------------------";
+      scrollToBottom();
+      await sleep(600);
+
+      for (const step of SCRIPT) {
+        if (stopped) return;
+
+        await sleep(step.delay ?? 600);
+
+        const lineEl = addLine(step.className ?? "");
+        // typeSpeed: ms per character (0 = instant)
+        await typeText(lineEl, step.text, step.typeSpeed ?? 18);
+      }
+
+      addLine("dim").textContent = "> ----------------------------------------";
+      addLine("dim").textContent = "> end.";
+      scrollToBottom();
+    }
+
+    // Replay on R
+    window.addEventListener("keydown", (e) => {
+      if (e.key.toLowerCase() === "r") runScript();
+    });
+
+    runScript();
+  </script>
+</body>
+</html>
